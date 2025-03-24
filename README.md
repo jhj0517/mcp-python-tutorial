@@ -1,4 +1,4 @@
-# MCP Tutorial App
+# MCP Python Tutorial
 Tutorial app for MCP in Python with simple local DB with mocking data
 
 ## Installation & Run
