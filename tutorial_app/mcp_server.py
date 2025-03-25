@@ -35,7 +35,7 @@ def create_mcp_server():
     """Create and configure the MCP server"""
     mcp = FastMCP(
         "MCP Tutorial App", 
-        dependencies=["sqlalchemy", "fastapi", "httpx", "faker"],
+        dependencies=["sqlalchemy", "aiosqlite", "faker"],
         lifespan=app_lifespan
     )
     
