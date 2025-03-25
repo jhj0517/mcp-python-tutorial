@@ -23,8 +23,8 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
     
     # Add mock data to the database
     seed_database()
-    
     app_context = AppContext(initialized=True)
+
     try:
         yield app_context
     finally:
@@ -35,7 +35,7 @@ def create_mcp_server():
     """Create and configure the MCP server"""
     mcp = FastMCP(
         "MCP Tutorial App", 
-        dependencies=["sqlalchemy", "aiosqlite", "faker"],
+        dependencies=["mcp[cli]", "sqlalchemy", "aiosqlite", "faker"],
         lifespan=app_lifespan
     )
     
@@ -151,7 +151,7 @@ def create_mcp_server():
             if not user:
                 return json.dumps({
                     "error": f"User with ID {user_id} not found"
-                })
+                }, ensure_ascii=False)
             
             # Create new post
             post = Post(title=title, content=content, user_id=user_id)
@@ -171,7 +171,7 @@ def create_mcp_server():
                         "username": post.author.username
                     }
                 }
-            })
+            }, ensure_ascii=False)
     
     @mcp.tool()
     def search_posts(query: str) -> str:
