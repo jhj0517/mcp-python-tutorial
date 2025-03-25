@@ -2,12 +2,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from contextlib import contextmanager
+import os
 from .models import Base
 
-engine = create_engine("sqlite:///tutorial.db", echo=True)
+# Get the directory where the application is located
+APP_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.path.join(APP_DIR, "tutorial.db")
+
+# Use absolute path for database
+engine = create_engine(f"sqlite:///{DB_PATH}", echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-async_engine = create_async_engine("sqlite+aiosqlite:///tutorial.db", echo=True)
+async_engine = create_async_engine(f"sqlite+aiosqlite:///{DB_PATH}", echo=True)
 AsyncSessionLocal = sessionmaker(
     bind=async_engine, class_=AsyncSession, expire_on_commit=False
 )
