@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+import json
+from typing import List, Dict, Any, Optional
 
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp.prompts import base
 
-from .database import seed_database, User, Post
-from .database.connection import db_handler, json_response
+from .database import get_db_session, seed_database, User, Post
+from .database.connection import db_operation
 
 
 @dataclass
@@ -18,14 +20,14 @@ class AppContext:
 @asynccontextmanager
 async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
     """Manage application lifecycle with type-safe context"""
+    print("Initializing MCP Tutorial App...")
+    
+    # Add mock data to the database
+    seed_database()
+    app_context = AppContext(initialized=True)
+
     try:
-        print("Initializing MCP Tutorial App...")
-        # Add mock data to the database
-        seed_database()
-        app_context = AppContext(initialized=True)
         yield app_context
-    except Exception as e:
-        print(f"Error during initialization: {e}")
     finally:
         print("Shutting down MCP Tutorial App...")
 
@@ -39,10 +41,10 @@ def create_mcp_server():
     )
     
     @mcp.resource("users://all")
-    @db_handler
-    def get_all_users(db) -> Dict:
+    @db_operation
+    def get_all_users(session=None) -> str:
         """Get all users from the database"""
-        users = db.query(User).all()
+        users = session.query(User).all()
         user_list = [
             {
                 "id": user.id,
@@ -53,17 +55,18 @@ def create_mcp_server():
             }
             for user in users
         ]
-        return {"users": user_list}
+        return json.dumps({"success": True, "users": user_list}, ensure_ascii=False)
     
     @mcp.resource("users://{user_id}/profile")
-    @db_handler
-    def get_user_profile(user_id: int, db) -> Dict:
+    @db_operation
+    def get_user_profile(user_id: int, session=None) -> str:
         """Get user profile by user ID"""
-        user = db.query(User).filter(User.id == user_id).first()
+        user = session.query(User).filter(User.id == user_id).first()
         if not user:
-            return {"error": f"User with ID {user_id} not found"}
+            return json.dumps({"error": f"User with ID {user_id} not found"}, ensure_ascii=False)
         
-        return {
+        return json.dumps({
+            "success": True,
             "user": {
                 "id": user.id,
                 "username": user.username,
@@ -71,13 +74,13 @@ def create_mcp_server():
                 "created_at": user.created_at.isoformat(),
                 "post_count": len(user.posts)
             }
-        }
+        }, ensure_ascii=False)
     
     @mcp.resource("posts://all")
-    @db_handler
-    def get_all_posts(db) -> Dict:
+    @db_operation
+    def get_all_posts(session=None) -> str:
         """Get all posts from the database"""
-        posts = db.query(Post).all()
+        posts = session.query(Post).all()
         post_list = [
             {
                 "id": post.id,
@@ -91,17 +94,18 @@ def create_mcp_server():
             }
             for post in posts
         ]
-        return {"posts": post_list}
+        return json.dumps({"success": True, "posts": post_list}, ensure_ascii=False)
     
     @mcp.resource("posts://{post_id}")
-    @db_handler
-    def get_post_by_id(post_id: int, db) -> Dict:
+    @db_operation
+    def get_post_by_id(post_id: int, session=None) -> str:
         """Get post by ID"""
-        post = db.query(Post).filter(Post.id == post_id).first()
+        post = session.query(Post).filter(Post.id == post_id).first()
         if not post:
-            return {"error": f"Post with ID {post_id} not found"}
+            return json.dumps({"error": f"Post with ID {post_id} not found"}, ensure_ascii=False)
         
-        return {
+        return json.dumps({
+            "success": True,
             "post": {
                 "id": post.id,
                 "title": post.title,
@@ -112,51 +116,55 @@ def create_mcp_server():
                     "username": post.author.username
                 }
             }
-        }
+        }, ensure_ascii=False)
     
     @mcp.tool()
-    @db_handler
-    def create_user(username: str, email: str, db) -> Dict:
+    @db_operation
+    def create_user(username: str, email: str, session=None) -> str:
         """Create a new user with the given username and email"""
         # Check if username or email already exists
-        existing_user = db.query(User).filter(
+        existing_user = session.query(User).filter(
             (User.username == username) | (User.email == email)
         ).first()
         
         if existing_user:
-            return {"error": "Username or email already exists"}
+            return json.dumps({
+                "error": "Username or email already exists"
+            }, ensure_ascii=False)
         
         # Create new user
         user = User(username=username, email=email)
-        db.add(user)
-        # No need to commit here, the decorator handles it
-        db.refresh(user)
+        session.add(user)
+        session.flush()  # Flush to get the ID without committing
         
-        return {
+        return json.dumps({
+            "success": True,
             "user": {
                 "id": user.id,
                 "username": user.username,
                 "email": user.email,
                 "created_at": user.created_at.isoformat()
             }
-        }
+        }, ensure_ascii=False)
     
     @mcp.tool()
-    @db_handler
-    def create_post(title: str, content: str, user_id: int, db) -> Dict:
+    @db_operation
+    def create_post(title: str, content: str, user_id: int, session=None) -> str:
         """Create a new post with the given title, content, and user ID"""
         # Check if user exists
-        user = db.query(User).filter(User.id == user_id).first()
+        user = session.query(User).filter(User.id == user_id).first()
         if not user:
-            return {"error": f"User with ID {user_id} not found"}
+            return json.dumps({
+                "error": f"User with ID {user_id} not found"
+            }, ensure_ascii=False)
         
         # Create new post
         post = Post(title=title, content=content, user_id=user_id)
-        db.add(post)
-        # No need to commit here, the decorator handles it
-        db.refresh(post)
+        session.add(post)
+        session.flush()  # Flush to get the ID without committing
         
-        return {
+        return json.dumps({
+            "success": True,
             "post": {
                 "id": post.id,
                 "title": post.title,
@@ -167,13 +175,13 @@ def create_mcp_server():
                     "username": post.author.username
                 }
             }
-        }
+        }, ensure_ascii=False)
     
     @mcp.tool()
-    @db_handler
-    def search_posts(query: str, db) -> Dict:
+    @db_operation
+    def search_posts(query: str, session=None) -> str:
         """Search posts by title or content"""
-        posts = db.query(Post).filter(
+        posts = session.query(Post).filter(
             (Post.title.ilike(f"%{query}%")) | 
             (Post.content.ilike(f"%{query}%"))
         ).all()
@@ -192,17 +200,18 @@ def create_mcp_server():
             for post in posts
         ]
         
-        return {
+        return json.dumps({
+            "success": True,
             "query": query,
             "result_count": len(post_list),
             "posts": post_list
-        }
+        }, ensure_ascii=False)
     
     @mcp.prompt()
-    @json_response
-    def user_profile_analysis(username: str) -> Dict:
+    def user_profile_analysis(username: str) -> str:
         """Prompt for analyzing a user's profile and posts"""
-        return {
+        return json.dumps({
+            "success": True,
             "prompt": f"""
             Analyze the profile and posts of user "{username}".
             
@@ -211,19 +220,19 @@ def create_mcp_server():
             3. How active are they based on post frequency?
             4. Provide some suggestions for content they might be interested in creating.
             """
-        }
+        }, ensure_ascii=False)
     
     @mcp.prompt()
-    @json_response
-    def post_feedback(post_id: int) -> Dict:
+    def post_feedback(post_id: int) -> str:
         """Interactive prompt for providing feedback on a post"""
-        return {
+        return json.dumps({
+            "success": True,
             "messages": [
                 {"role": "user", "content": f"I'd like feedback on post with ID {post_id}"},
                 {"role": "assistant", "content": "I'll help analyze this post. What specific aspects would you like feedback on?"},
                 {"role": "user", "content": "I'm interested in the clarity, engagement potential, and grammar."},
                 {"role": "assistant", "content": "I'll analyze those aspects. Let me retrieve the post content first."}
             ]
-        }
+        }, ensure_ascii=False)
     
     return mcp 
