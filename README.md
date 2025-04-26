@@ -1,8 +1,18 @@
 # MCP Python Tutorial
+[![smithery badge](https://smithery.ai/badge/@jhj0517/mcp-python-tutorial)](https://smithery.ai/server/@jhj0517/mcp-python-tutorial)
 Tutorial app for MCP in Python with simple local DB with mocking data
 
 ## Installation & Run
 
+### Installing via Smithery
+
+To install Python MCP Tutorial Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@jhj0517/mcp-python-tutorial):
+
+```bash
+npx -y @smithery/cli install @jhj0517/mcp-python-tutorial --client claude
+```
+
+### Manual Installation
 1. Clone this repository
 2. Install dependencies:
 
